@@ -122,14 +122,14 @@ def agent1(stop_event):
 
             list4.append(flag)
 
-        print(list3)
-        print(list4)
+        
+        
         for i, (a, b) in enumerate(zip(list3, list4)):
             if (a, b) in [(0, 1)]:
-                print("detect delta",i)
+                print("detect delta",list2[i])
                 close_delta_position(list2[i])
             elif (a, b) in [(1, 0)]:
-                print("detect coin",i)  
+                print("detect coin",list1[i])  
                 close_coin_position(list1[i])  
                 
         time.sleep(3)
