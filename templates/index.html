@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Single Input Add/Delete</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .box {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      width: 300px;
+      text-align: center;
+    }
+
+    input {
+      width: 90%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+
+    .add {
+      background: #2ecc71;
+      color: white;
+    }
+
+    .delete {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .text-box {
+      margin-top: 20px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+<div class="box">
+  <form id="textForm" method="POST">
+    <input type="text" name="text" placeholder="Enter text">
+
+    <br>
+    <button type="submit" class="add" onclick="setAction('/save_text')">
+      Add
+    </button>
+
+    <button type="submit" class="delete" onclick="setAction('/remove_text')">
+      Delete
+    </button>
+  </form>
+</div>
+
+<script>
+  function setAction(url) {
+    document.getElementById("textForm").action = url;
+  }
+</script>
+
+</body>
+</html>

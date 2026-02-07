@@ -1,0 +1,50 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+
+# VS Code
+.vscode/
+
+# Mac
+.DS_Store
+
+# Logs
+*.log
+
+# Mongo local dumps
+dump/
+
+# Node (if using any frontend later)
+node_modules/
+
+# Build folders
+dist/
+build/
+
+# Flask cache
+instance/
+.webassets-cache
+
+# Pytest
+.pytest_cache/
+
+# coverage
+.coverage
+htmlcov/
+
+# SQLite (if ever used)
+*.sqlite3
+*.db
+
+# cPanel temp
+tmp/
