@@ -132,5 +132,5 @@ def agent1(stop_event):
                 print("detect coin",list1[i])  
                 close_coin_position(list1[i])  
                 
-        time.sleep(3)
+        time.sleep(1)
     print("Agent1 stopped")
