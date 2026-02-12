@@ -1,0 +1,1 @@
+indicator = 0

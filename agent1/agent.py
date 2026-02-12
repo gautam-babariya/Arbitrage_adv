@@ -1,4 +1,5 @@
 import time
+import threading
 from delta_rest_client import DeltaRestClient
 from dotenv import load_dotenv
 import hmac
@@ -15,6 +16,8 @@ from config.mongo import trading_collection
 from Close_coin.close_posotion import close_coin_position
 from Close_delta.close_position import close_delta_position
 
+import memory
+
 KEY = os.getenv("Delta_apikey")
 SECRET = os.getenv("Delta_apisecret")
 URL = os.getenv("Delta_baseurl")
@@ -28,6 +31,10 @@ delta_client = DeltaRestClient(
   api_secret=SECRET
 )
 
+def run_in_thread(func, *args):
+    t = threading.Thread(target=func, args=args, daemon=True)
+    t.start()
+    
 def get_all_texts():
     data = trading_collection.find({}, {"_id": 0, "text": 1})
     return [item["text"] for item in data]
@@ -79,58 +86,61 @@ def get_position_delta(symbol: str):
 
 def agent1(stop_event):
     while not stop_event.is_set():
-        list1 = get_all_texts()
-        list2 = []
+        if memory.indicator == 1:
+            memory.indicator = 0
+            print("Agent1 detected delete, checking positions...")
+            for _ in range(2):  # retry loop
+                time.sleep(1)
+                list1 = get_all_texts()
+                list2 = []
 
-        for s in list1:
-            s = s.replace("B-", "")
-            s = s.replace("_USDT", "USD")   # USDT → USD
-            s = s.replace("_", "")          # remove remaining _
-            list2.append(s)
-        list3 = []
+                for s in list1:
+                    s = s.replace("B-", "")
+                    s = s.replace("_USDT", "USD")   # USDT → USD
+                    s = s.replace("_", "")          # remove remaining _
+                    list2.append(s)
+                list3 = []
 
-        for symbol in list1:
-            data = get_position_coindcx(symbol)
+                for symbol in list1:
+                    data = get_position_coindcx(symbol)
 
-            flag = 0
+                    flag = 0
 
-            if data and len(data) > 0:
-                pos = data[0].get("active_pos") or 0
-                if pos > 0 or pos < 0:
-                    flag = 1
+                    if data and len(data) > 0:
+                        pos = data[0].get("active_pos") or 0
+                        if pos > 0 or pos < 0:
+                            flag = 1
 
-            list3.append(flag)
+                    list3.append(flag)
 
-        list4 = []
+                list4 = []
 
-        for symbol in list2:
-            data = get_position_delta(symbol)
+                for symbol in list2:
+                    data = get_position_delta(symbol)
 
-            flag = 0
+                    flag = 0
 
-            if isinstance(data, list) and data:
-                if data[0].get("size") and data[0]["size"] > 0:
-                    flag = 1
-                if data[0].get("size") and data[0]["size"] < 0:
-                    flag = 1
+                    if isinstance(data, list) and data:
+                        if data[0].get("size") and data[0]["size"] > 0:
+                            flag = 1
+                        if data[0].get("size") and data[0]["size"] < 0:
+                            flag = 1
 
-            elif isinstance(data, dict):
-                if data.get("size") and data["size"] > 0:
-                    flag = 1
-                if data.get("size") and data["size"] < 0:
-                    flag = 1
+                    elif isinstance(data, dict):
+                        if data.get("size") and data["size"] > 0:
+                            flag = 1
+                        if data.get("size") and data["size"] < 0:
+                            flag = 1
 
-            list4.append(flag)
+                    list4.append(flag)
 
-        
-        
-        for i, (a, b) in enumerate(zip(list3, list4)):
-            if (a, b) in [(0, 1)]:
-                print("detect delta",list2[i])
-                close_delta_position(list2[i])
-            elif (a, b) in [(1, 0)]:
-                print("detect coin",list1[i])  
-                close_coin_position(list1[i])  
-                
+                for i, (a, b) in enumerate(zip(list3, list4)):
+                    if (a, b) in [(0, 1)]:
+                        print("detect delta",list2[i])
+                        run_in_thread(close_delta_position, list2[i])
+                    elif (a, b) in [(1, 0)]:
+                        print("detect coin",list1[i])  
+                        run_in_thread(close_coin_position, list1[i])
         time.sleep(1)
+        
     print("Agent1 stopped")
