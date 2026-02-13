@@ -11,7 +11,7 @@ import sys
 load_dotenv()
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-import memory   # your shared memory module
+import memory
 
 WEBSOCKET_URL = os.getenv("Delta_websocket_url")
 API_KEY = os.getenv("Delta_apikey")
@@ -20,7 +20,12 @@ API_SECRET = os.getenv("Delta_apisecret")
 ws_global = None
 reconnect_flag = True
 delta_thread = None
-last_msg_time = time.time()
+
+# heartbeat
+last_heartbeat_time = time.time()
+HEARTBEAT_TIMEOUT = 120   # 2 minutes (safe)
+lock = threading.Lock()
+
 
 # ================= EVENTS =================
 
@@ -34,8 +39,10 @@ def on_open(ws):
     print("Delta WS connected")
     send_authentication(ws)
 
+
 def generate_signature(secret, message):
     return hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+
 
 def send_authentication(ws):
     method = "GET"
@@ -54,6 +61,7 @@ def send_authentication(ws):
         }
     }))
 
+
 def subscribe(ws, channel, symbols):
     ws.send(json.dumps({
         "type": "subscribe",
@@ -64,31 +72,48 @@ def subscribe(ws, channel, symbols):
         }
     }))
 
+
+def enable_heartbeat(ws):
+    ws.send(json.dumps({
+        "type": "enable_heartbeat"
+    }))
+    print("Heartbeat enabled")
+
+
+# ================= MESSAGE =================
+
 def on_message(ws, message):
-    global last_msg_time
-    last_msg_time = time.time()
+    global last_heartbeat_time
 
     data = json.loads(message)
 
-    # auth success
+    # heartbeat
+    if data.get("type") == "heartbeat":
+        with lock:
+            last_heartbeat_time = time.time()
+        return
+
+    # auth
     if data.get("type") == "key-auth":
         if data.get("success"):
             print("Delta auth success")
+
+            enable_heartbeat(ws)
             subscribe(ws, "positions", ["all"])
         else:
-            print("Delta auth failed")
+            print("Auth failed")
         return
 
-    # position delete detect
+    # position closed
     if data.get("action") == "delete":
         print("Position closed on Delta")
         memory.indicator = 1
 
 
-# ================= MAIN SOCKET LOOP =================
+# ================= MAIN LOOP =================
 
 def start_delta_ws():
-    global ws_global, reconnect_flag, last_msg_time
+    global ws_global, reconnect_flag, last_heartbeat_time
 
     while reconnect_flag:
         try:
@@ -103,32 +128,35 @@ def start_delta_ws():
             )
 
             ws_global = ws
-            last_msg_time = time.time()
 
-            ws.run_forever(
-                ping_interval=20,
-                ping_timeout=10
-            )
+            with lock:
+                last_heartbeat_time = time.time()
+
+            ws.run_forever()
 
         except Exception as e:
             print("WS crash:", e)
 
-        # reconnect delay
         if reconnect_flag:
-            print("Reconnecting in 5 sec...")
-            time.sleep(5)
+            print("Reconnect after 3 sec...")
+            time.sleep(3)
 
 
 # ================= WATCHDOG =================
-# if no message for long → reconnect
+# only reconnect if REALLY dead
 
-def watchdog():
+def heartbeat_watchdog():
     global ws_global
+
     while reconnect_flag:
         time.sleep(10)
 
-        if time.time() - last_msg_time > 60:
-            print("No data from Delta → force reconnect")
+        with lock:
+            diff = time.time() - last_heartbeat_time
+
+        if diff > HEARTBEAT_TIMEOUT:
+            print("⚠️ Heartbeat lost for long → reconnect")
+
             try:
                 if ws_global:
                     ws_global.close()
@@ -142,7 +170,7 @@ def run_delta_background():
     global delta_thread, reconnect_flag
 
     if delta_thread and delta_thread.is_alive():
-        print("Delta WS already running")
+        print("Delta already running")
         return
 
     reconnect_flag = True
@@ -150,8 +178,7 @@ def run_delta_background():
     delta_thread = threading.Thread(target=start_delta_ws, daemon=True)
     delta_thread.start()
 
-    # watchdog thread
-    threading.Thread(target=watchdog, daemon=True).start()
+    threading.Thread(target=heartbeat_watchdog, daemon=True).start()
 
 
 # ================= STOP =================
@@ -159,7 +186,6 @@ def run_delta_background():
 def stop_delta_ws():
     global ws_global, reconnect_flag
 
-    print("Stopping Delta WS...")
     reconnect_flag = False
 
     try:
